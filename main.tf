@@ -70,10 +70,15 @@ resource "aws_api_gateway_integration" "lambda_integration" {
   uri  = aws_lambda_function.my_lambda.invoke_arn
 }
 
-# Deploy API
+# Deploy API Gateway
 resource "aws_api_gateway_deployment" "deployment" {
   depends_on  = [aws_api_gateway_integration.lambda_integration]
   rest_api_id = aws_api_gateway_rest_api.api.id
-  stage_name  = "prod"
+}
+
+resource "aws_api_gateway_stage" "prod" {
+  deployment_id = aws_api_gateway_deployment.deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  stage_name    = "prod"
 }
 
