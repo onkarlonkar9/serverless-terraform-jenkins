@@ -1,10 +1,9 @@
 
-
-# Create DynamoDB Table
+# DynamoDB Table
 resource "aws_dynamodb_table" "items" {
-  name           = "items-table"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "id"
+  name         = "items-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
 
   attribute {
     name = "id"
@@ -12,34 +11,40 @@ resource "aws_dynamodb_table" "items" {
   }
 }
 
-# Create IAM Role for Lambda
+# IAM Role for Lambda
 resource "aws_iam_role" "lambda_role" {
   name = "lambda-execution-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
       Principal = { Service = "lambda.amazonaws.com" }
-      Effect = "Allow"
+      Effect    = "Allow"
     }]
   })
 }
 
-# Attach Policy
 resource "aws_iam_role_policy_attachment" "lambda_policy" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Package Lambda automatically
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_file = "${path.module}/lambda/lambda_function.py"
+  output_path = "${path.module}/lambda_function.zip"
+}
+
 # Lambda Function
 resource "aws_lambda_function" "my_lambda" {
-  function_name = "serverless-demo-fn"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
-  filename      = "lambda_function.zip"
-  source_code_hash = filebase64sha256("lambda_function.zip")
+  function_name    = "serverless-demo-fn"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.9"
+  filename         = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 }
 
 # API Gateway
@@ -62,12 +67,12 @@ resource "aws_api_gateway_method" "get_items" {
 }
 
 resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id = aws_api_gateway_rest_api.api.id
-  resource_id = aws_api_gateway_resource.items.id
-  http_method = aws_api_gateway_method.get_items.http_method
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.items.id
+  http_method             = aws_api_gateway_method.get_items.http_method
   integration_http_method = "POST"
-  type = "AWS_PROXY"
-  uri  = aws_lambda_function.my_lambda.invoke_arn
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.my_lambda.invoke_arn
 }
 
 # Deploy API Gateway
@@ -76,9 +81,20 @@ resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.api.id
 }
 
+# Stage
 resource "aws_api_gateway_stage" "prod" {
   deployment_id = aws_api_gateway_deployment.deployment.id
   rest_api_id   = aws_api_gateway_rest_api.api.id
   stage_name    = "prod"
 }
 
+# Outputs
+output "lambda_function_arn" {
+  value       = aws_lambda_function.my_lambda.arn
+  description = "ARN of the Lambda function"
+}
+
+output "api_invoke_url" {
+  value       = "${aws_api_gateway_deployment.deployment.invoke_url}/items"
+  description = "Invoke URL for the API Gateway endpoint"
+}
