@@ -10,7 +10,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/onkarlonkar9/serverless-terraform-jenkins.git', branch: "main"
+                git url: 'https://github.com/onkarlonkar9/serverless-terraform-jenkins.git', branch: "main"
             }
         }
 
